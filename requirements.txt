@@ -1,0 +1,9 @@
+torch==2.0.1
+accelerate==0.21.0
+datasets==2.14.2
+evaluate==0.4.0
+sentencepiece==0.1.99
+pandas==1.5.3
+numpy==1.22.4
+plotly==5.15.0
+nbformat==5.9.2
