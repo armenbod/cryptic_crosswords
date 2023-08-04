@@ -712,7 +712,7 @@ def main():
         trainer.log_metrics("predict", metrics)
         trainer.save_metrics("predict", metrics)
 
-        with open(training_args.output_dir + f'test_predictions_{output_dir}.json', "w") as final:
+        with open(training_args.output_dir + f'test_predictions.json', "w") as final:
             json.dump(predictions, final)
 
     if training_args.push_to_hub:
