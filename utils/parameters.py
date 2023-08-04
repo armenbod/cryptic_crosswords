@@ -17,4 +17,4 @@ max_seq_length = 64
 # Output path
 output_dir = './tmp/debug_seq2seq_xword/'
 overwrite_dir = True
-predictions_path = f'{output_dir}/test_predictions_{output_dir}.json'
+predictions_path = f'{output_dir}/test_predictions.json'
