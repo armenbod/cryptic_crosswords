@@ -21,10 +21,11 @@ Fine-tuning the library's seq2seq models for question answering using the 🤗 S
 import logging
 import os
 import sys
-import warnings
+import json
 from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 
+import ast
 import datasets
 import evaluate
 import numpy as np
@@ -81,19 +82,13 @@ class ModelArguments:
         default="main",
         metadata={"help": "The specific model version to use (can be a branch name, tag name or commit id)."},
     )
-    token: str = field(
-        default=None,
+    use_auth_token: bool = field(
+        default=False,
         metadata={
             "help": (
-                "The token to use as HTTP bearer authorization for remote files. If not specified, will use the token "
-                "generated when running `huggingface-cli login` (stored in `~/.huggingface`)."
+                "Will use the token generated when running `huggingface-cli login` (necessary to use this script "
+                "with private models)."
             )
-        },
-    )
-    use_auth_token: bool = field(
-        default=None,
-        metadata={
-            "help": "The `use_auth_token` argument is deprecated and will be removed in v4.34. Please use `token`."
         },
     )
 
@@ -280,15 +275,9 @@ def main():
     else:
         model_args, data_args, training_args = parser.parse_args_into_dataclasses()
 
-    if model_args.use_auth_token is not None:
-        warnings.warn("The `use_auth_token` argument is deprecated and will be removed in v4.34.", FutureWarning)
-        if model_args.token is not None:
-            raise ValueError("`token` and `use_auth_token` are both specified. Please set only the argument `token`.")
-        model_args.token = model_args.use_auth_token
-
     # Sending telemetry. Tracking the example usage helps us better allocate resources to maintain them. The
     # information sent is the one passed as arguments along with your Python/PyTorch versions.
-    send_example_telemetry("run_seq2seq_qa", model_args, data_args)
+    #send_example_telemetry("run_seq2seq_qa", model_args, data_args)
 
     # Setup logging
     logging.basicConfig(
@@ -348,7 +337,7 @@ def main():
             data_args.dataset_name,
             data_args.dataset_config_name,
             cache_dir=model_args.cache_dir,
-            token=model_args.token,
+            use_auth_token=True if model_args.use_auth_token else None,
         )
     else:
         data_files = {}
@@ -364,10 +353,12 @@ def main():
         raw_datasets = load_dataset(
             extension,
             data_files=data_files,
-            field="data",
             cache_dir=model_args.cache_dir,
-            token=model_args.token,
+            use_auth_token=True if model_args.use_auth_token else None,
         )
+    #      removed from line 354: field="data",
+
+
     # See more about loading any type of standard or custom dataset (from files, python dict, pandas DataFrame, etc) at
     # https://huggingface.co/docs/datasets/loading_datasets.html.
 
@@ -380,14 +371,14 @@ def main():
         model_args.config_name if model_args.config_name else model_args.model_name_or_path,
         cache_dir=model_args.cache_dir,
         revision=model_args.model_revision,
-        token=model_args.token,
+        use_auth_token=True if model_args.use_auth_token else None,
     )
     tokenizer = AutoTokenizer.from_pretrained(
         model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
         cache_dir=model_args.cache_dir,
         use_fast=model_args.use_fast_tokenizer,
         revision=model_args.model_revision,
-        token=model_args.token,
+        use_auth_token=True if model_args.use_auth_token else None,
     )
     model = AutoModelForSeq2SeqLM.from_pretrained(
         model_args.model_name_or_path,
@@ -395,7 +386,7 @@ def main():
         config=config,
         cache_dir=model_args.cache_dir,
         revision=model_args.model_revision,
-        token=model_args.token,
+        use_auth_token=True if model_args.use_auth_token else None,
     )
 
     # We resize the embeddings only when necessary to avoid index errors. If you are creating a model from scratch
@@ -471,7 +462,7 @@ def main():
     ) -> Tuple[List[str], List[str]]:
         questions = examples[question_column]
         contexts = examples[context_column]
-        answers = examples[answer_column]
+        answers = [ast.literal_eval(x) for x in examples[answer_column]]
 
         def generate_input(_question, _context):
             return " ".join(["question:", _question.lstrip(), "context:", _context.lstrip()])
@@ -645,12 +636,13 @@ def main():
         # Format the result to the format the metric expects.
         if data_args.version_2_with_negative:
             formatted_predictions = [
-                {"id": k, "prediction_text": v, "no_answer_probability": 0.0} for k, v in predictions.items()
+                {"id": str(k), "prediction_text": v, "no_answer_probability": 0.0} for k, v in predictions.items()
             ]
         else:
             formatted_predictions = [{"id": k, "prediction_text": v} for k, v in predictions.items()]
 
-        references = [{"id": ex["id"], "answers": ex[answer_column]} for ex in examples]
+        references = [{"id": str(ex["id"]), "answers": ast.literal_eval(ex[answer_column])} for ex in examples]
+
         return EvalPrediction(predictions=formatted_predictions, label_ids=references)
 
     # Initialize our Trainer
@@ -708,7 +700,9 @@ def main():
     if training_args.do_predict:
         logger.info("*** Predict ***")
         results = trainer.predict(predict_dataset, predict_examples)
+        results
         metrics = results.metrics
+        predictions = results.predictions
 
         max_predict_samples = (
             data_args.max_predict_samples if data_args.max_predict_samples is not None else len(predict_dataset)
@@ -717,6 +711,9 @@ def main():
 
         trainer.log_metrics("predict", metrics)
         trainer.save_metrics("predict", metrics)
+
+        with open(training_args.output_dir + f'test_predictions_{output_dir}.json', "w") as final:
+            json.dump(predictions, final)
 
     if training_args.push_to_hub:
         kwargs = {"finetuned_from": model_args.model_name_or_path, "tasks": "question-answering"}
