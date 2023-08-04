@@ -21,14 +21,14 @@ This has been tested using Python >=3.10.
 
 ## Scripts
 
-The trainer and wrapper python files are originally derived from the [HuggingFace transformers](https://github.com/huggingface/transformers/tree/main/examples/pytorch/question-answering) examples page. Some minor changes were made - please compare files with the original commit if interested.
+The trainer and wrapper python files are originally derived from the [HuggingFace transformers](https://github.com/huggingface/transformers/tree/main/examples/pytorch/question-answering) examples page. Some minor changes were made to the runfile to save predictions - please compare files with the original commit if interested.
 
 ## Data
 
-The clues dataset has been downloaded from this website: [link](https://cryptics.georgeho.org/data/clues)
+The clues dataset has been downloaded from this website: [link](https://cryptics.georgeho.org/data/clues). Please download and save into the ./data folder.
 
 ## Parameters
 
-Editable parameters are available in the `param.py` file.
+Editable parameters are available in the `parameters.py` file.
 
 
